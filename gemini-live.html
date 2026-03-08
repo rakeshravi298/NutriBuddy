@@ -258,8 +258,8 @@
         const TARGET_SAMPLE_RATE = 16000; // Gemini requires 16kHz audio
         const SYSTEM_PROMPT = 'Please be a helpful assistant and kind conversationalist. ' +
             'Respond to the user(s) directly by answering with relevant information ' +
-            'in full detail. When you do not have relevant information, use your ' +
-            'Google Search tool to search for it. You can use Markdown and LaTeX. ' +
+            'in full detail. Be concise unless asked otherwise. When you do not have ' +
+            'relevant information, use your Google Search tool to search for it. ' +
             "Do not merely describe the user(s)' utterances. Do not include timestamps.";
         const INSTRUCTIONS = "**Instructions:**\n\nYou can interact with Gemini Live " +
             "by speaking, uploading image files or from your camera, or typing or " +
@@ -404,7 +404,7 @@
         // --- Audio Worklet ---
         const AudioRecordingWorklet = `
             class AudioProcessingWorklet extends AudioWorkletProcessor {
-                buffer = new Int16Array(512); // Reduced from 2048 for much lower latency (~32ms)
+                buffer = new Int16Array(256); // Further reduced from 512 for ultra-low latency (~16ms)
                 bufferWriteIndex = 0;
 
                 constructor() {
@@ -432,9 +432,9 @@
 
                 processChunk(float32Array) {
                     for (let i = 0; i < float32Array.length; i++) {
-                        const clampedValue = Math.max(-1.0, Math.min(1.0, float32Array[i]));
-                        const int16Value = Math.floor(clampedValue * 32767);
-                        this.buffer[this.bufferWriteIndex++] = int16Value;
+                        // Faster conversion: use bit-shifting and clamping
+                        let s = Math.max(-1, Math.min(1, float32Array[i]));
+                        this.buffer[this.bufferWriteIndex++] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                         if (this.bufferWriteIndex >= this.buffer.length) {
                             this.sendAndClearBuffer();
                         }
@@ -613,8 +613,11 @@
                 }
                 audioSource = audioContext.createMediaStreamSource(mediaStream);
 
-                // Step 4: Set up Audio Playback Worklet
-                outAudioContext = new AudioContext({ sampleRate: 24000 });
+                // Step 4: Set up Audio Playback Worklet - use interactive latency hint
+                outAudioContext = new AudioContext({ 
+                    sampleRate: 24000,
+                    latencyHint: 'interactive' 
+                });
                 if (outAudioContext.state === 'suspended') {
                     await outAudioContext.resume();
                 }
@@ -801,8 +804,11 @@
                 });
                 // send prior context if any
                 if (contextTurns.length) {
-                    liveOutput(`Sending ${contextTurns.length} turns of prior context above.`, 'info');
-                    contextTurns.push({ role: 'user', parts: [{ text: "Please summarize our discussion so far." }] })
+                    // Truncate context to last 12 turns to keep it fast
+                    if (contextTurns.length > 12) {
+                        contextTurns = contextTurns.slice(-12);
+                    }
+                    liveOutput(`Restoring ${contextTurns.length} turns of context...`, 'info');
                     await liveSession.sendClientContent({
                         turns: contextTurns,
                         turnComplete: true
