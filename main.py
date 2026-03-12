@@ -104,6 +104,8 @@ async def handle_http(request):
     path = request.match_info.get("path", "").strip("/")
     if not path or path == "index.html" or path == "gemini-live.html":
         target = "gemini-live.html"
+    elif path == "login":
+        target = "landing.html"
     else:
         target = path
 
@@ -115,12 +117,13 @@ async def handle_http(request):
 
     for fp in search_paths:
         if os.path.exists(fp) and os.path.isfile(fp):
-            if target == "gemini-live.html":
+            if target in ["gemini-live.html", "landing.html"]:
                 with open(fp, "r", encoding="utf-8") as f: content = f.read()
                 config = get_firebase_config()
                 content = content.replace('// CONFIG_PLACEHOLDER', f"const firebaseConfig = {json.dumps(config, indent=4)};")
-                content = content.replace('id="projectId" value=""', f'id="projectId" value="{config["projectId"]}"')
-                content = content.replace('</html>\n\n\n</html>', '</html>')
+                if target == "gemini-live.html":
+                    content = content.replace('id="projectId" value=""', f'id="projectId" value="{config["projectId"]}"')
+                    content = content.replace('</html>\n\n\n</html>', '</html>')
                 return web.Response(body=content, content_type="text/html")
             
             ctype, _ = mimetypes.guess_type(fp)
