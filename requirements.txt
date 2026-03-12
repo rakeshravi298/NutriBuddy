@@ -1,6 +1,9 @@
-# Dev environment
-pip
-autopep8
-
-# App
-flask
+fastapi
+uvicorn
+google-genai
+websockets
+python-dotenv
+python-multipart
+aiohttp
+certifi
+google-auth
