@@ -22,6 +22,13 @@
             margin: 0;
             display: flex;
             height: 100vh;
+            overflow: hidden;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
         }
 
         /* Sidebar */
@@ -33,6 +40,21 @@
             display: flex;
             flex-direction: column;
             box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+            z-index: 1001;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                transform: translateX(-100%);
+            }
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
         }
 
         .sidebar h2 {
@@ -92,6 +114,39 @@
             display: flex;
             flex-direction: column;
             gap: 25px;
+            transition: all 0.3s;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 20px;
+            }
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+                margin-top: 40px;
+            }
+        }
+
+        /* Mobile Menu Button */
+        .menu-toggle {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1002;
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 184, 148, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .menu-toggle { display: block; }
         }
 
         .header {
@@ -117,17 +172,64 @@
         }
 
         .summary-item {
-            padding: 20px;
-            background: #F9FAFB;
-            border-left: 4px solid var(--accent);
-            border-radius: 8px;
+            padding: 24px;
+            background: #FFFFFF;
+            border-radius: 16px;
+            border: 1px solid #E9ECEF;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+            transition: all 0.2s;
+        }
+
+        .summary-item:hover {
+            border-color: var(--accent);
+            box-shadow: 0 8px 20px rgba(0, 184, 148, 0.08);
+        }
+
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #F1F3F5;
         }
 
         .summary-date {
-            font-size: 0.8rem;
-            color: #636E72;
-            margin-bottom: 10px;
+            font-size: 0.85rem;
+            color: var(--accent);
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .summary-content {
+            font-size: 0.95rem;
+            line-height: 1.7;
+            color: #495057;
+        }
+
+        .summary-content h2, .summary-content h3 {
+            font-size: 1.05rem;
+            color: var(--primary);
+            margin: 20px 0 10px 0;
+            padding-bottom: 4px;
+            border-bottom: 2px solid var(--accent);
+            display: inline-block;
+        }
+
+        .summary-content strong {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .summary-content ul {
+            padding-left: 20px;
+            margin: 10px 0;
+        }
+
+        .summary-content li {
+            margin-bottom: 6px;
         }
 
         .upload-section {
@@ -179,6 +281,45 @@
             cursor: not-allowed;
         }
 
+        /* Grid Layout for Forms */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 25px;
+            margin-top: 15px;
+        }
+
+        @media (max-width: 992px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #636E72;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .upload-card-compact {
+            background: #F8F9FA;
+            border: 1px dashed #ced4da;
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 100%;
+        }
+
         .welcome-screen {
             display: flex;
             flex-direction: column;
@@ -198,23 +339,32 @@
 
         .fade-in { animation: fadeIn 0.4s ease-out; }
 
-        #loading-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
+    <style>
+        .loader-spinner {
+            width: 25px; height: 25px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-top: 2px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        #patient-loader {
             display: none;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
         }
     </style>
 </head>
 
 <body>
-    <div id="loading-overlay">Loading...</div>
 
-    <div class="sidebar">
+    <button class="menu-toggle" id="menuToggle">☰</button>
+
+    <div class="sidebar" id="sidebar">
         <h2>🥗 Dietician Pan</h2>
         <div style="margin-bottom: 20px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 12px;">
             <div style="font-size: 0.8rem; margin-bottom: 8px; opacity: 0.8;">ADD PATIENT</div>
@@ -223,7 +373,11 @@
             <button class="btn" id="addPatientBtn" style="width: 100%; padding: 8px; font-size: 0.8rem;">Add Patient</button>
         </div>
 
-        <div style="margin-bottom: 15px; font-size: 0.9rem; opacity: 0.7;">MY PATIENTS</div>
+        <div style="margin-bottom: 5px; font-size: 0.9rem; opacity: 0.7;">MY PATIENTS</div>
+        <div id="patient-loader">
+            <div class="loader-spinner"></div>
+            <span>Syncing patients...</span>
+        </div>
         <ul class="user-list" id="userList">
             <!-- Users will be populated here -->
         </ul>
@@ -244,18 +398,24 @@
             </div>
 
             <div class="card">
-                <h3>📝 Add New Plan or Record</h3>
-                <div class="upload-section">
-                    <input type="text" id="recordTitle" class="input-title" placeholder="Record Title (e.g., April Diet Plan)">
-                    <textarea id="recordContent" placeholder="Enter diet plan, medical notes, or instructions..."></textarea>
-                    <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px; padding: 15px; background: #F8F9FA; border-radius: 12px; border: 1px dashed #ced4da;">
-                        <div style="flex-grow: 1;">
-                            <label style="display: block; font-size: 0.8rem; margin-bottom: 5px; color: #636E72;">Upload PDF Document</label>
-                            <input type="file" id="pdfFile" accept="application/pdf" style="font-size: 0.85rem;">
-                        </div>
-                        <button class="btn btn-outline" id="uploadPdfBtn" style="background: white; border-color: var(--accent); color: var(--accent);">Upload PDF</button>
+                <h3>📝 New Medical Record or Plan</h3>
+                <div class="form-grid">
+                    <div class="input-group">
+                        <label class="input-label">Text Details</label>
+                        <input type="text" id="recordTitle" class="input-title" placeholder="e.g. Weekly Diet Plan - April">
+                        <textarea id="recordContent" placeholder="Enter notes, diet charts, or specific instructions for the AI to follow..."></textarea>
+                        <button class="btn" id="uploadBtn" style="margin-top: 5px;">Save & Index Record</button>
                     </div>
-                    <button class="btn" id="uploadBtn" style="margin-top: 10px;">Upload & Index Text Record</button>
+
+                    <div class="input-group">
+                        <label class="input-label">Document Attachment</label>
+                        <div class="upload-card-compact">
+                            <div style="font-size: 0.9rem; color: #2D3436; font-weight: 500;">PDF Document</div>
+                            <p style="font-size: 0.75rem; color: #636E72; margin: 0;">Upload lab reports, detailed PDFs or meal plan documents.</p>
+                            <input type="file" id="pdfFile" accept="application/pdf" style="font-size: 0.8rem; margin-top: 5px;">
+                            <button class="btn btn-outline" id="uploadPdfBtn" style="background: white; border-color: var(--accent); color: var(--accent); width: 100%; margin-top: auto;">Upload PDF</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -267,6 +427,28 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // Sidebar Toggle for Mobile
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebar');
+        
+        menuToggle.onclick = () => {
+            sidebar.classList.toggle('mobile-open');
+            menuToggle.textContent = sidebar.classList.contains('mobile-open') ? '✕' : '☰';
+        };
+
+        // Close sidebar on click outside or on item selection (mobile)
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 768 && 
+                !sidebar.contains(e.target) && 
+                e.target !== menuToggle && 
+                sidebar.classList.contains('mobile-open')) {
+                sidebar.classList.remove('mobile-open');
+                menuToggle.textContent = '☰';
+            }
+        });
+    </script>
 
     <!-- Firebase SDKs -->
     <script type="module">
@@ -311,6 +493,8 @@
         });
 
         async function loadUsers(dieticianUid) {
+            const loader = document.getElementById('patient-loader');
+            loader.style.display = 'flex';
             try {
                 const response = await fetch(`/get_my_patients?dieticianUid=${dieticianUid}`);
                 const users = await response.json();
@@ -324,12 +508,21 @@
                 users.forEach(u => {
                     const li = document.createElement('li');
                     li.className = 'user-item';
-                    li.textContent = u.email;
-                    li.onclick = () => selectUser(u);
+                    const username = u.email.split('@')[0];
+                    li.textContent = username;
+                    li.onclick = () => {
+                        selectUser(u);
+                        if (window.innerWidth <= 768) {
+                            sidebar.classList.remove('mobile-open');
+                            menuToggle.textContent = '☰';
+                        }
+                    };
                     list.appendChild(li);
                 });
             } catch (err) {
                 console.error("Error loading users:", err);
+            } finally {
+                loader.style.display = 'none';
             }
         }
 
@@ -381,9 +574,26 @@
             loadSummaries(user.email);
         }
 
+        function parseSummaryMarkdown(text) {
+            if (!text) return "";
+            return text
+                // Headers 
+                .replace(/^## (.*$)/gm, '<h3>$1</h3>')
+                .replace(/^### (.*$)/gm, '<h4>$1</h4>')
+                // Bold
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                // Lists
+                .replace(/^\* (.*$)/gm, '<li>$1</li>')
+                .replace(/^- (.*$)/gm, '<li>$1</li>')
+                .replace(/(<li>.*<\/li>)/gms, '<ul>$1</ul>')
+                // Newlines
+                .replace(/\n\n/g, '<p></p>')
+                .replace(/\n/g, '<br>');
+        }
+
         async function loadSummaries(email) {
             const container = document.getElementById('summariesContainer');
-            container.innerHTML = '<p>Loading summaries...</p>';
+            container.innerHTML = '<p style="opacity: 0.5;">🔄 Syncing recent summaries...</p>';
 
             try {
                 const response = await fetch(`/get_user_summaries?email=${encodeURIComponent(email)}`);
@@ -395,8 +605,10 @@
                         const item = document.createElement('div');
                         item.className = 'summary-item';
                         item.innerHTML = `
-                            <div class="summary-date">${s.date} - ${s.timestamp}</div>
-                            <div class="summary-content">${s.summary.replace(/\n/g, '<br>')}</div>
+                            <div class="summary-header">
+                                <div class="summary-date">📅 ${s.date} <span style="margin: 0 8px; opacity: 0.3;">|</span> 🕒 ${s.timestamp}</div>
+                            </div>
+                            <div class="summary-content">${parseSummaryMarkdown(s.summary)}</div>
                         `;
                         container.appendChild(item);
                     });

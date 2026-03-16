@@ -18,6 +18,25 @@ from google.cloud import firestore
 from google.cloud import storage
 from google.cloud.firestore_v1.vector import Vector
 from google.cloud.firestore_v1.base_vector_query import DistanceMeasure
+from google.oauth2 import id_token
+import google.auth.transport.requests
+
+def get_id_token(audience):
+    try:
+        # 1. Try standard ADC (works on GCP)
+        auth_req = google.auth.transport.requests.Request()
+        token = id_token.fetch_id_token(auth_req, audience)
+        return token
+    except Exception as e:
+        # 2. Local Fallback: Try gcloud CLI if available
+        try:
+            import subprocess
+            res = subprocess.run(["gcloud", "auth", "print-identity-token"], capture_output=True, text=True)
+            if res.returncode == 0:
+                return res.stdout.strip()
+        except: pass
+        print(f"⚠️ Could not fetch ID token: {e}")
+        return None
 
 load_dotenv()
 
@@ -539,21 +558,28 @@ async def handle_get_my_patients(request):
 async def handle_upload_pdf(request):
     try:
         reader = await request.multipart()
-        field = await reader.next()
-        
-        filename = field.filename
-        user_email: str = ""
+        user_email = None
         file_data = None
-        
-        while field:
-            if field.name == 'userEmail':
-                user_email = (await field.read()).decode()
-            if field.name == 'file':
-                file_data = await field.read()
-            field = await reader.next()
+        filename = "document.pdf"
+
+        # Iterate through all parts of the multipart request
+        while True:
+            part = await reader.next()
+            if part is None:
+                break
+            
+            if part.name == 'userEmail':
+                user_email = (await part.read()).decode()
+            elif part.name == 'file':
+                filename = part.filename or "document.pdf"
+                file_data = await part.read()
+            else:
+                # Consume unknown parts to keep the reader healthy
+                await part.read()
 
         if not user_email or not file_data:
-            return web.json_response({"error": "Missing email or file"}, status=400)
+            print(f"⚠️ Upload failed: email={user_email is not None}, file={file_data is not None}")
+            return web.json_response({"error": "Missing userEmail or file data"}, status=400)
 
         sanitized_email = user_email.replace("@", "_at_").replace(".", "_")
         project_id = os.getenv("FIREBASE_PROJECT_ID")
@@ -565,28 +591,39 @@ async def handle_upload_pdf(request):
         # Save to users/{email}/files/{filename}
         blob_path = f"users/{sanitized_email}/files/{filename}"
         blob = bucket.blob(blob_path)
-        blob.upload_from_string(file_data, content_type='application/pdf')
+        
+        # Upload using bytes directly
+        blob.upload_from_string(bytes(file_data), content_type='application/pdf')
         
         print(f"✅ PDF saved: gs://{bucket_name}/{blob_path}")
 
-        # Trigger Embedding Service (Cloud Run)
-        # Assuming EMBEDDING_SERVICE_URL is set in .env
+        # Trigger Embedding Service (Cloud Function)
         embedding_url = os.getenv("EMBEDDING_SERVICE_URL")
         if embedding_url:
+            # Get OIDC identity token for authentication
+            token = get_id_token(embedding_url)
+            headers = {}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+                print("🔑 OIDC token attached to trigger request")
+
             async with aiohttp.ClientSession() as session:
                 async with session.post(embedding_url, json={
                     "bucket": bucket_name,
                     "path": blob_path,
                     "userEmail": user_email
-                }) as resp:
-                    print(f"🚀 Triggered Embedding Service: {resp.status}")
+                }, headers=headers, timeout=10) as resp:
+                    resp_text = await resp.text()
+                    print(f"🚀 Triggered Embedding Service: {resp.status} - {resp_text}")
         else:
             print("⚠️ EMBEDDING_SERVICE_URL not set. Skipping trigger.")
 
         return web.json_response({"status": "uploaded", "path": blob_path})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"❌ Upload Error: {e}")
-        return web.json_response({"error": str(e)}, status=500)
+        return web.json_response({"error": f"Upload failed: {str(e)}"}, status=500)
 
 async def handle_get_user_summaries(request):
     try:
