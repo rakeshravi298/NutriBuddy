@@ -38,6 +38,19 @@ NutriBuddy is a professional platform designed to enhance the connection between
 4.  **Access**:
     Visit `http://localhost:5000`
 
+## 🧪 Reproducible Testing
+
+Use the following credentials to test the live application:
+
+| Role | Email | Password |
+| :--- | :--- | :--- |
+| **Dietician** | `dietician@gmail.com` | `user123` |
+| **User/Client** | `user@gmail.com` | `user123` |
+
+### 📖 How to Test
+For a complete walkthrough on how to upload documents, assign patients, and test the RAG (Instant Recall) features, please refer to the:
+👉 **[User Guide: How to Work with NutriBuddy](docs/USER_GUIDE.md)**
+
 ## ☁️ Deployment
 This project is designed for **Google Cloud Run**.
 Detailed steps can be found in [docs/cloud_deployment_plan.md](docs/cloud_deployment_plan.md).
