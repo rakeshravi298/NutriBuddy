@@ -757,6 +757,28 @@
         </div>
     </div>
 
+    <script>
+        // Sidebar Toggle for Mobile
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebar');
+        
+        menuToggle.onclick = () => {
+            sidebar.classList.toggle('mobile-open');
+            menuToggle.textContent = sidebar.classList.contains('mobile-open') ? '✕' : '☰';
+        };
+
+        // Close sidebar on click outside or on item selection (mobile)
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 768 && 
+                !sidebar.contains(e.target) && 
+                e.target !== menuToggle && 
+                sidebar.classList.contains('mobile-open')) {
+                sidebar.classList.remove('mobile-open');
+                menuToggle.textContent = '☰';
+            }
+        });
+    </script>
+
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
@@ -843,6 +865,8 @@
                 });
             } catch (err) {
                 console.error("Error loading users:", err);
+            } finally {
+                loader.style.display = 'none';
             }
         }
 
@@ -904,6 +928,23 @@
             document.getElementById('userEmailTag').textContent = user.email;
 
             loadSummaries(user.email);
+        }
+
+        function parseSummaryMarkdown(text) {
+            if (!text) return "";
+            return text
+                // Headers 
+                .replace(/^## (.*$)/gm, '<h3>$1</h3>')
+                .replace(/^### (.*$)/gm, '<h4>$1</h4>')
+                // Bold
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                // Lists
+                .replace(/^\* (.*$)/gm, '<li>$1</li>')
+                .replace(/^- (.*$)/gm, '<li>$1</li>')
+                .replace(/(<li>.*<\/li>)/gms, '<ul>$1</ul>')
+                // Newlines
+                .replace(/\n\n/g, '<p></p>')
+                .replace(/\n/g, '<br>');
         }
 
         async function loadSummaries(email) {
