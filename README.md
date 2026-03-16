@@ -11,6 +11,8 @@ NutriBuddy is a professional platform designed to enhance the connection between
 - **Cloud Native**: Fully containerized and ready for Google Cloud Run.
 - **Unified Login**: A seamless, modern authentication experience for both dieticians and clients.
 
+## 📁 Repository Structure
+```text
 ├── services/               
 │   ├── website_service/    # Main App (UI, Auth, Voice Proxy)
 │   └── embedding_service/  # PDF processing & vector indexing worker
@@ -18,17 +20,19 @@ NutriBuddy is a professional platform designed to enhance the connection between
 ├── scripts/                # Cloud setup and data utilities
 ├── .env.example            # Template for environment variables
 └── README.md               # You are here
+```
 
 ## 🚀 Quick Start (Local)
 
-1.  **Clone & Install**:
+1.  **Clone & Install Dependencies**:
     ```bash
-    pip install -r requirements.txt
+    pip install -r services/website_service/requirements.txt
     ```
 2.  **Environment Setup**:
     Copy `.env.example` to `.env` and fill in your Firebase/GCP credentials.
-3.  **Run Server**:
+3.  **Run Website Service**:
     ```bash
+    cd services/website_service
     python main.py
     ```
 4.  **Access**:

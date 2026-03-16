@@ -35,7 +35,7 @@ The application is deployed on **Google Cloud Run** in the `asia-south1` region.
 
 ## 🟢 2. AI & Machine Learning: Vertex AI (Gemini)
 The core "brain" of the agent is powered by **Google Gemini**.
-- **Proof (Code)**: In `main.py`, we initialize the Google GenAI client:
+- **Proof (Code)**: In `services/website_service/main.py`, we initialize the Google GenAI client:
   ```python
   from google import genai
   client = genai.Client(vertexai=True, project=PROJECT_ID, location="us-central1")
@@ -44,7 +44,7 @@ The core "brain" of the agent is powered by **Google Gemini**.
 
 ## 🟢 3. Database: Google Cloud Firestore
 We use **Firestore** for both user profile management and high-speed vector searches.
-- **Proof (Code)**: In `main.py`, we import and use the Firestore SDK:
+- **Proof (Code)**: In `services/website_service/main.py`, we import and use the Firestore SDK:
   ```python
   from google.cloud import firestore
   from google.cloud.firestore_v1.vector import Vector
