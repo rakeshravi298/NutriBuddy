@@ -129,7 +129,13 @@ function updateStatus(elementId, text) {
 
 // Connect to Gemini
 async function connect() {
-  const proxyUrl = elements.proxyUrl.value || null;
+  // Dynamic Proxy URL
+  let proxyUrl = elements.proxyUrl.value;
+  if (!proxyUrl) {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      proxyUrl = `${protocol}//${window.location.host}/ws`;
+      elements.proxyUrl.value = proxyUrl;
+  }
   const projectId = elements.projectId.value;
   const model = elements.model.value;
 

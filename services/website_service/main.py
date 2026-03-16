@@ -40,9 +40,8 @@ def get_id_token(audience):
 
 load_dotenv()
 
-DEBUG = True
+DEBUG = False
 HTTP_PORT = int(os.getenv("PORT", 5000))
-WS_PORT = 8080
 
 def generate_access_token():
     try:
@@ -57,37 +56,59 @@ def generate_access_token():
 async def proxy_task(source_websocket, destination_websocket, is_server):
     prefix = "SERVER -> CLIENT" if is_server else "CLIENT -> SERVER"
     try:
-        async for message in source_websocket:
-            try:
-                # Force JSON decoding and re-encoding to ensure TEXT frames for browser
-                # and to match the 'Successful Implementation' logic exactly.
+        # aiohttp websockets are iterated differently
+        if isinstance(source_websocket, web.WebSocketResponse):
+            async for msg in source_websocket:
+                if msg.type == web.WSMsgType.TEXT:
+                    await relay_message(msg.data, destination_websocket, prefix, is_server)
+                elif msg.type == web.WSMsgType.BINARY:
+                    await relay_message(msg.data, destination_websocket, prefix, is_server)
+                elif msg.type == web.WSMsgType.ERROR:
+                    break
+        else:
+            async for message in source_websocket:
+                await relay_message(message, destination_websocket, prefix, is_server)
+    except Exception as e:
+        if DEBUG: print(f"[{prefix}] Proxy Task Error: {e}")
+    finally:
+        try: await destination_websocket.close()
+        except: pass
+
+async def relay_message(message, destination_websocket, prefix, is_server):
+    try:
+        # Try to parse as JSON for logging and unified relay
+        try:
+            if isinstance(message, bytes):
+                data = json.loads(message.decode('utf-8'))
+            else:
                 data = json.loads(message)
                 
-                if DEBUG:
-                    if "serverContent" in data or "server_content" in data:
-                        sc = data.get("serverContent") or data.get("server_content")
-                        if "modelTurn" in sc or "model_turn" in sc:
-                            print(f"[{prefix}] Model Output (Audio/Text)")
-                        elif "turnComplete" in sc or "turn_complete" in sc:
-                            print(f"[{prefix}] Turn Complete")
-                    elif "setupComplete" in data or "setup_complete" in data:
-                        print(f"[{prefix}] Handshake Finalized")
-                    elif "error" in data:
-                        print(f"[{prefix}] ❌ ERROR: {data['error']}")
-                    elif "realtimeInput" not in data and "realtime_input" not in data:
-                        # Log other structural messages
-                        print(f"[{prefix}] JSON keys: {list(data.keys())}")
+            if DEBUG:
+                if "serverContent" in data or "server_content" in data:
+                    sc = data.get("serverContent") or data.get("server_content")
+                    if "modelTurn" in sc or "model_turn" in sc:
+                        print(f"[{prefix}] Model Output")
+                    elif "turnComplete" in sc or "turn_complete" in sc:
+                        print(f"[{prefix}] Turn Complete")
+                elif "setupComplete" in data or "setup_complete" in data:
+                    print(f"[{prefix}] Handshake Finalized")
+            
+            relay_data = json.dumps(data)
+            if isinstance(destination_websocket, web.WebSocketResponse):
+                await destination_websocket.send_str(relay_data)
+            else:
+                await destination_websocket.send(relay_data)
+        except:
+            # Fallback for raw binary
+            if isinstance(destination_websocket, web.WebSocketResponse):
+                await destination_websocket.send_bytes(message if isinstance(message, bytes) else message.encode())
+            else:
+                await destination_websocket.send(message)
+            if DEBUG and is_server:
+                print(f"[{prefix}] Relayed Raw Binary ({len(message)} bytes)")
+    except Exception as e:
+        if DEBUG: print(f"[{prefix}] Relay Error: {e}")
 
-                await destination_websocket.send(json.dumps(data))
-            except Exception as e:
-                # If it's pure binary that can't be JSON, relay it raw (e.g. if API changes)
-                try:
-                    await destination_websocket.send(message)
-                    if DEBUG and is_server:
-                        print(f"[{prefix}] Relayed Raw Binary ({len(message)} bytes)")
-                except: pass
-    except ConnectionClosed: pass
-    finally: await destination_websocket.close()
 
 async def create_proxy(client_websocket, bearer_token, service_url):
     headers = {"Authorization": f"Bearer {bearer_token}"}
@@ -103,18 +124,28 @@ async def create_proxy(client_websocket, bearer_token, service_url):
         print(f"❌ Handshake failed: {e}")
         if not client_websocket.closed: await client_websocket.close()
 
-async def handle_websocket_client(client_websocket):
-    print("🔌 Browser connecting...")
+async def handle_websocket_client(request):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    print("🔌 Browser connected via WebSocket")
+    
     try:
-        msg = await asyncio.wait_for(client_websocket.recv(), timeout=10.0)
-        setup = json.loads(msg)
+        # First message is setup
+        msg = await asyncio.wait_for(ws.receive_json(), timeout=10.0)
+        setup = msg
         bearer = setup.get("bearer_token") or generate_access_token()
         url = setup.get("service_url")
+        
         if not bearer or not url:
-            await client_websocket.close(code=1008); return
-        await create_proxy(client_websocket, bearer, url)
-    except:
-        if not client_websocket.closed: await client_websocket.close()
+            await ws.close(code=1008)
+            return ws
+            
+        await create_proxy(ws, bearer, url)
+    except Exception as e:
+        print(f"❌ WebSocket error: {e}")
+        if not ws.closed:
+            await ws.close()
+    return ws
 
 def get_firebase_config():
     return {
@@ -137,8 +168,12 @@ async def handle_http(request):
     else:
         target = path
 
-    # Search in order: root, static/
-    search_paths = [os.path.join(os.getcwd(), target), os.path.join(os.getcwd(), "static", target)]
+    # Search in order: templates/, static/
+    search_paths = [
+        os.path.join(os.getcwd(), "templates", target),
+        os.path.join(os.getcwd(), "static", target),
+        os.path.join(os.getcwd(), target)
+    ]
     # Also handle 'static/filename' explicitly if requested
     if target.startswith("static/"):
         search_paths.append(os.path.join(os.getcwd(), target[7:]))
@@ -668,7 +703,9 @@ async def handle_get_user_summaries(request):
 
 async def start_servers():
     app = web.Application()
-    app.router.add_get("/{path:.*}", handle_http)
+    
+    # Routes
+    app.router.add_get("/ws", handle_websocket_client) # New single-port WS endpoint
     app.router.add_post("/summarize", handle_summarize)
     app.router.add_get("/get_session_context", handle_get_context)
     app.router.add_post("/index_record", handle_index_record)
@@ -678,12 +715,15 @@ async def start_servers():
     app.router.add_post("/assign_patient", handle_assign_patient)
     app.router.add_get("/get_user_summaries", handle_get_user_summaries)
     app.router.add_post("/upload_pdf", handle_upload_pdf)
+    
+    # Static files and page handling (always at the end)
+    app.router.add_get("/{path:.*}", handle_http)
+
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", HTTP_PORT).start()
-    print(f"🌍 WEB: http://localhost:{HTTP_PORT} | 🔌 PROXY: {WS_PORT}")
-    async with websockets.serve(handle_websocket_client, "0.0.0.0", WS_PORT):
-        await asyncio.Future()
+    print(f"🌍 UNIFIED SERVER: http://0.0.0.0:{HTTP_PORT} (Serving HTTP & WebSockets)")
+    await asyncio.Future()
 
 if __name__ == "__main__":
     try: asyncio.run(start_servers())
